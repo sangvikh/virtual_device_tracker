@@ -1,39 +1,24 @@
 blueprint:
-  name: Device tracker from geocoded sensor (virtual device_tracker)
+  name: Virtual device tracker
   description: >
-    Updates a virtual device_tracker from a sensor's 'location' attribute
-    (expected format: [lat, lon]).
+    Updates a virtual device_tracker from any entity attribute that returns
+    [latitude, longitude] (e.g., 'location')
   domain: automation
   input:
     geocoded_sensor:
-      name: Geocoded location sensor
-      description: Sensor whose attribute (default 'location') is a [lat, lon] list
+      name: Geocoded location entity
+      description: Entity with an attribute that returns [lat, lon]
       selector:
-        entity:
-          domain: sensor
+        entity: {}
     location_attribute:
-      name: Location attribute name
+      name: Attribute name
       description: Attribute holding [lat, lon]
       default: location
       selector:
         text:
     device_id:
       name: Device tracker ID (dev_id)
-      description: >
-        The name for the virtual device tracker (e.g., sm_a155f_virtual).
-        This becomes device_tracker.<dev_id>.
-      selector:
-        text:
-    debounce:
-      name: Minimum time before update (optional)
-      description: Only update after the attribute stays the same for this duration
-      default: 0
-      selector:
-        duration:
-    gps_accuracy_attribute:
-      name: Accuracy attribute name (optional)
-      description: Attribute on the same sensor that holds an accuracy number (meters)
-      default: ""
+      description: device_tracker.<dev_id> will be created/updated
       selector:
         text:
 
@@ -43,40 +28,20 @@ trigger:
   - platform: state
     entity_id: !input geocoded_sensor
     attribute: !input location_attribute
-    for: !input debounce
 
 variables:
   eid: !input geocoded_sensor
   attr: !input location_attribute
-  acc_attr: !input gps_accuracy_attribute
   coords: "{{ state_attr(eid, attr) }}"
-  lat: "{{ coords[0] if coords is not none else none }}"
-  lon: "{{ coords[1] if coords is not none else none }}"
-  acc: "{{ state_attr(eid, acc_attr) if acc_attr|length > 0 else none }}"
 
 condition:
   - condition: template
-    value_template: "{{ lat is number and lon is number }}"
+    value_template: "{{ coords is not none }}"
 
 action:
-  - choose:
-      - conditions: "{{ acc is number }}"
-        sequence:
-          - service: device_tracker.see
-            data:
-              dev_id: !input device_id
-              gps:
-                - "{{ lat }}"
-                - "{{ lon }}"
-              gps_accuracy: "{{ acc|int }}"
-              attributes:
-                source_type: gps
-    default:
-      - service: device_tracker.see
-        data:
-          dev_id: !input device_id
-          gps:
-            - "{{ lat }}"
-            - "{{ lon }}"
-          attributes:
-            source_type: gps
+  - service: device_tracker.see
+    data:
+      dev_id: !input device_id
+      gps: "{{ coords }}"
+      attributes:
+        source_type: gps
